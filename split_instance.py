@@ -3,7 +3,7 @@ import numpy as np
 from PIL import Image
 import os 
 
-def split_instance(images_dir, masks_dir, imset, dest_dir, year = 2017, type = 'train'):
+def split_instance(images_dir, masks_dir, imset, dest_dir, year = '2017', type = 'train'):
     try:
         os.makedirs(os.path.join(dest_dir, 'ImageSets', year))
     except:

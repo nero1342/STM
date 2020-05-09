@@ -25,7 +25,6 @@ class DAVIS_MO_Test(data.Dataset):
         self.num_objects = {}
         self.shape = {}
         self.size_480p = {}
-        self.K = 0
         with open(os.path.join(_imset_f), "r") as lines:
             for line in lines:
                 _video = line.rstrip('\n')
@@ -33,10 +32,11 @@ class DAVIS_MO_Test(data.Dataset):
                 self.num_frames[_video] = len(glob.glob(os.path.join(self.image_dir, _video, '*.jpg')))
                 _mask = np.array(Image.open(os.path.join(self.mask_dir, _video, '00000.png')).convert("P"))
                 self.num_objects[_video] = np.max(_mask)
-                self.K = max(self.K, self.num_objects[_video])
+                #self.K = max(self.K, self.num_objects[_video])
                 self.shape[_video] = np.shape(_mask)
                 _mask480 = np.array(Image.open(os.path.join(self.mask480_dir, _video, '00000.png')).convert("P"))
                 self.size_480p[_video] = np.shape(_mask480)
+        self.K = 11
         self.single_object = single_object
 
     def __len__(self):
