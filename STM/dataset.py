@@ -6,7 +6,7 @@ from PIL import Image
 import torch
 import torchvision
 from torch.utils import data
-
+import cv2 as cv 
 import glob
 
 class DAVIS_MO_Test(data.Dataset):
@@ -25,6 +25,7 @@ class DAVIS_MO_Test(data.Dataset):
         self.num_objects = {}
         self.shape = {}
         self.size_480p = {}
+        self.K = 0
         with open(os.path.join(_imset_f), "r") as lines:
             for line in lines:
                 _video = line.rstrip('\n')
@@ -32,13 +33,14 @@ class DAVIS_MO_Test(data.Dataset):
                 self.num_frames[_video] = len(glob.glob(os.path.join(self.image_dir, _video, '*.jpg')))
                 _mask = np.array(Image.open(os.path.join(self.mask_dir, _video, '00000.png')).convert("P"))
                 self.num_objects[_video] = np.max(_mask)
-                #self.K = max(self.K, self.num_objects[_video])
+                self.K = max(self.K, self.num_objects[_video])
                 self.shape[_video] = np.shape(_mask)
                 _mask480 = np.array(Image.open(os.path.join(self.mask480_dir, _video, '00000.png')).convert("P"))
                 self.size_480p[_video] = np.shape(_mask480)
-        self.K = 11
         self.single_object = single_object
-
+        self.K += 2
+        #self.K = 11
+        print('Number of class:', self.K)
     def __len__(self):
         return len(self.videos)
 
@@ -70,19 +72,32 @@ class DAVIS_MO_Test(data.Dataset):
             try:
                 mask_file = os.path.join(self.mask_dir, video, '{:05d}.png'.format(f))  
                 N_masks[f] = np.array(Image.open(mask_file).convert('P'), dtype=np.uint8)
+                temp = N_masks[f]
+                
+                #temp = final
+                #temp = Image.fromarray(x)
+
+                #temp[temp == 0] = int(self.num_objects[video]) + 1
+                #print(video, index)
+                #for i in range(int(self.num_objects[video]) + 2):
+                #    print(np.sum(temp == i), end = ' ')
+                #print()
+                N_masks[f] = temp
+                #except:
+                #    #print(f, 'a')
+                #    N_masks[f] = 255
             except:
-                # print('a')
                 N_masks[f] = 255
-        
-        Fs = torch.from_numpy(np.transpose(N_frames.copy(), (3, 0, 1, 2)).copy()).float()
+        Fs = torch.from_numpy(np.transpose(N_frames, (3, 0, 1, 2))).float()
         if self.single_object:
             N_masks = (N_masks > 0.5).astype(np.uint8) * (N_masks < 255).astype(np.uint8)
-            Ms = torch.from_numpy(self.All_to_onehot(N_masks).copy()).float()
+            Ms = torch.from_numpy(self.All_to_onehot(N_masks)).float()
             num_objects = torch.LongTensor([int(1)])
             return Fs, Ms, num_objects, info
         else:
-            Ms = torch.from_numpy(self.All_to_onehot(N_masks).copy()).float()
+            Ms = torch.from_numpy(self.All_to_onehot(N_masks)).float()
             num_objects = torch.LongTensor([int(self.num_objects[video])])
+            
             return Fs, Ms, num_objects, info
 
 

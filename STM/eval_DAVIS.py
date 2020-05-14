@@ -20,12 +20,13 @@ import tqdm
 import os
 import argparse
 import copy
-
+import matplotlib 
 
 ### My libs
 from dataset import DAVIS_MO_Test
 from model import STM
 
+import dilate_and_gaussian_mask
 
 torch.set_grad_enabled(False) # Volatile
 
@@ -69,7 +70,6 @@ def Run_video(Fs, Ms, num_frames, num_objects, Mem_every=None, Mem_number=None):
 
     Es = torch.zeros_like(Ms)
     Es[:,:,0] = Ms[:,:,0]
-
     for t in tqdm.tqdm(range(1, num_frames)):
         # memorize
         with torch.no_grad():
@@ -83,6 +83,22 @@ def Run_video(Fs, Ms, num_frames, num_objects, Mem_every=None, Mem_number=None):
         
         # segment
         with torch.no_grad():
+            ####### Dilate image t by mask (t - 1)
+            img = Fs[0,:,t].cpu().numpy() * 255
+            img = np.transpose(img, (1, 2, 0))
+            new_img = dilate_and_gaussian_mask.process_input_image(mask_t_1 = np.argmax(Es[0,:,t-1].cpu().numpy(), axis=0).astype(np.uint8), jpeg_t = img)
+            try:
+                os.makedirs('image')
+            except:
+                pass
+            new_img.save('image/{:05d}.jpg'.format(t))
+            new_img = np.array(new_img) / 255.
+            total_on = np.sum(new_img > 0)
+            #print(t, total_on, new_img.shape[0] * new_img.shape[1] * 3)
+            #if total_on:
+            Fs[0,:,t] = torch.from_numpy(np.transpose(new_img, (2, 0, 1))).float()
+            
+            #######
             logit = model(Fs[:,:,t], this_keys, this_values, torch.tensor([num_objects]))
         Es[:,:,t] = F.softmax(logit, dim=1)
         
@@ -91,12 +107,12 @@ def Run_video(Fs, Ms, num_frames, num_objects, Mem_every=None, Mem_number=None):
             keys, values = this_keys, this_values
         
     pred = np.argmax(Es[0].cpu().numpy(), axis=0).astype(np.uint8)
-    return pred, Es
+    return pred, Es[0].cpu().numpy(), Fs
 
 
 
 Testset = DAVIS_MO_Test(DATA_ROOT, resolution='480p', imset='20{}/{}.txt'.format(YEAR,SET), single_object=(YEAR==16))
-Testloader = data.DataLoader(Testset, batch_size=1, shuffle=False, num_workers=2, pin_memory=True)
+Testloader = data.DataLoader(Testset, batch_size=1, shuffle=False, num_workers=0, pin_memory=True)
 
 model = nn.DataParallel(STM())
 if torch.cuda.is_available():
@@ -124,27 +140,39 @@ for seq, V in enumerate(Testloader):
     num_frames = info['num_frames'][0].item()
     print('[{}]: num_frames: {}, num_objects: {}'.format(seq_name, num_frames, num_objects[0][0]))
     
-    pred, Es = Run_video(Fs, Ms, num_frames, num_objects, Mem_every=5, Mem_number=None)
+    pred, Es, Fs = Run_video(Fs, Ms, num_frames, num_objects, Mem_every=5, Mem_number=None)
         
     # Save results for quantitative eval ######################
-    test_path = os.path.join('./test', code_name, seq_name)
+    test_path = os.path.join('./test_heatmap', code_name, seq_name)
     if not os.path.exists(test_path):
         os.makedirs(test_path)
-    print('Saving mask...')
-
-    # If is instance object -> change color from id 1 -> exactly id.
-    try:
-        id = int(seq_name.split('_')[1]) 
-        pred *= id
-    except:
-        pass
-
-    for f in range(num_frames):
+        for o in range(num_objects):
+            os.makedirs(test_path + '/' +str(o + 1))
         
+    print('Saving mask...')
+    
+    print(Es.shape)
+    for f in range(num_frames):
         img_E = Image.fromarray(pred[f])
         img_E.putpalette(palette)
         img_E.save(os.path.join(test_path, '{:05d}.png'.format(f)))
-
+    
+        #for o in range(num_objects):
+        #    heatmap =  Es[o + 1, f]
+        #    #print(f, o, np.amin(heatmap), np.amax(heatmap))
+        #    matplotlib.image.imsave(os.path.join(test_path, str(o + 1), '{:05d}.png'.format(f)), heatmap)
+        #    #matplotlib.image.imsave('Image.jpg', denormalize(image[0]))  
+        #    #matplotlib.image.imsave('Mask.png', pr_mask[0,:,:,0], cmap = 'gray')  
+    
+    #for o in range(num_objects):
+    #    print('Saving heatmap {}_{}'.format(seq_name, o + 1))
+    ##    vid_path = os.path.join('./test_heatmap/', code_name, '{}.mp4'.format(seq_name + '_' + str(o + 1)))
+    #    frame_path = os.path.join('./test_heatmap/', code_name, seq_name, str(o + 1),'%05d.png')
+    #    #os.system('ffmpeg -framerate 10 -i {} {} -vcodec libx264 -crf 10  -pix_fmt yuv420p  -nostats -loglevel 0 -y'.format(frame_path, vid_path))
+    #    os.system('ffmpeg -i {} -c:v libx264 -nostats -vf "fps=10,format=yuv420p" {}.mp4'.format(frame_path, vid_path))
+        #ffmpeg -r 1/5 -i img%03d.png -c:v libx264 -vf "fps=25,format=yuv420p" out.mp4
+    # If is instance object -> change color from id 1 -> exactly id.
+    
     if VIZ:
         print('Saving video...')
         from helpers import overlay_davis
@@ -152,10 +180,14 @@ for seq, V in enumerate(Testloader):
         viz_path = os.path.join('./viz/', code_name, seq_name)
         if not os.path.exists(viz_path):
             os.makedirs(viz_path)
-
+        
         for f in tqdm.tqdm(range(num_frames)):
             pF = (Fs[0,:,f].permute(1,2,0).numpy() * 255.).astype(np.uint8)
             pE = pred[f]
+            #x = np.amax(pE)
+            #pE[pE == x] = 0
+            #print(seq_name, f, [np.sum(pE == x) for x in range(num_objects + 1)])
+            
             canvas = overlay_davis(pF, pE, palette)
             canvas = Image.fromarray(canvas)
             canvas.save(os.path.join(viz_path, 'f{:05d}.jpg'.format(f)))

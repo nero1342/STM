@@ -1,3 +1,8 @@
+DAVIS-Instance-TestChallenge
+test_heatmap
+viz
+image
+STM_weights.pth
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

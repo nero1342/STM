@@ -29,17 +29,24 @@ def split_instance(images_dir, masks_dir, imset, dest_dir, year = '2017', type =
                 #print(seq_name, i)
                 try:
                     mask = np.array(Image.open(msk_ids[i]))
+                    if (i == 0):
+                      class_values = np.unique(mask)
+                      #print(class_values)
+                      #mask[mask == 0] = len(class_values)
+                      #print(seq_name + '_' + str(len(class_values)).zfill(2), file = f)
+                      #class_values = np.unique(mask)
+                      for v in range(1, len(class_values)):
+                         print(seq_name + '_' + str(v).zfill(2), file = f)
+                      
+                      print(class_values)
+                      print(seq_name,i, '/', n, 'with',len(class_values) - 1,'instance(s).') 
+                      
                 except:
                     mask = None
+                #continue
                 im = Image.open(img_ids[i])
                 # extract certain classes from mask (e.g. cars)
-                if (i == 0):
-                    class_values = np.unique(mask)
-                    print(class_values)
-                    for v in range(1, len(class_values)):
-                        print(seq_name + '_' + str(v).zfill(2), file = f)
-                    print(seq_name,i, '/', n, 'with',len(class_values) - 1,'instance(s).') 
-                for v in class_values[1:]:
+                for v in class_values:
                     path = str(Path(dest_dir) / "Annotations" / "480p" / (seq_name + '_' + str(v).zfill(2)))
                     path_im = str(Path(dest_dir) / "JPEGImages" / "480p" / (seq_name + '_' + str(v).zfill(2)))
                     if i == 0:
@@ -54,6 +61,7 @@ def split_instance(images_dir, masks_dir, imset, dest_dir, year = '2017', type =
                         x = (mask == v)
                         x[x == True] = 1
                         x[x == False] = 0
+    
                         img = Image.fromarray(x.astype(np.uint8))
                         img.putpalette(palette)
                         img.save(file_name)
