@@ -20,7 +20,6 @@ class FocalLoss(nn.Module):
             raise TypeError("Not support alpha type")
         
     def forward(self, logit, target):
-        print(logit.shape, target.shape, logit.dim())
         if logit.dim() > 2:
             # N,C,d1,d2 -> N,C,m (m=d1*d2*...)
             logit = logit.reshape(logit.size(0), logit.size(1), -1)
