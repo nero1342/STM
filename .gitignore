@@ -3,6 +3,9 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+DAVIS 
+runs
+*.pth
 # C extensions
 *.so
 

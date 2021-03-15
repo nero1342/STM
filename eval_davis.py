@@ -26,7 +26,8 @@ import copy
 from datasets.davis import DAVIS_MO_Test
 from models.stm import STM
 from utils.helpers import * 
-from losses.focalloss import FocalLoss 
+from losses.focalloss import FocalLoss
+from losses.diceloss import DiceLoss
 
 torch.set_grad_enabled(False) # Volatile
 
@@ -63,7 +64,10 @@ if VIZ:
 palette = Image.open(DATA_ROOT + '/Annotations/480p/blackswan/00000.png').getpalette()
 
 def Run_video(Fs, Ms, num_frames, num_objects, Mem_every=None, Mem_number=None):
-    criterion = FocalLoss(num_objects, alpha = [1 / num_objects] * num_objects)
+    max_n_objects = Ms[:,:,0].size(1)
+    weight = [30] * max_n_objects
+    weight[0] = 1
+    criterion = DiceLoss(weight)
     # initialize storage tensors
     if Mem_every:
         to_memorize = [int(i) for i in np.arange(0, num_frames, step=Mem_every)]
@@ -90,7 +94,7 @@ def Run_video(Fs, Ms, num_frames, num_objects, Mem_every=None, Mem_number=None):
             logit = model(Fs[:,:,t], this_keys, this_values, torch.tensor([num_objects]))
         Es[:,:,t] = F.softmax(logit, dim=1)
         
-        loss = criterion(logit.cuda(), torch.argmax(Ms[:,:,t], dim = 1).cuda())
+        loss = criterion(logit.cuda(), Ms[:,:,t].cuda())
 
         gt = torch.argmax(Ms[:,:,t], dim = 1)
         pr = torch.argmax(Es[:,:,t], dim = 1)
@@ -124,6 +128,8 @@ print('Start Testing:', code_name)
 
 for seq, V in enumerate(Testloader):
     Fs, Ms, num_objects, info = V
+    print(Fs.shape, Ms.shape)
+    break
     seq_name = info['name'][0]
     num_frames = info['num_frames'][0].item()
     print('[{}]: num_frames: {}, num_objects: {}'.format(seq_name, num_frames, num_objects[0][0]))
