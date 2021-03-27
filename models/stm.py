@@ -145,3 +145,37 @@ class STM(nn.Module):
             return self.segment(*args, **kwargs)
         else:
             return self.memorize(*args, **kwargs)
+
+class STMOriginal(nn.Module):
+    def __init__(self):
+        super().__init__()
+        stm = nn.DataParallel(STM())
+        self.stm = stm.module
+
+    def forward(self, inp):
+        self.stm.eval()
+
+        a_im, a_seg, *b_ims, c_im, nobjects = inp
+        # {a,b,c}_im: B3HW, a_seg: BHW
+        num_objects = torch.LongTensor([[nobjects]])
+
+        # Memorize a
+        a_seg = F.one_hot(a_seg, 11).permute(0, 3, 1, 2)
+        #a_im = self.stn(a_im, a_seg)
+        k, v = self.stm.memorize(a_im, a_seg, num_objects)
+
+        b_logits = []
+        for b_im in b_ims:
+            # Segment b
+            b_logit = self.stm.segment(b_im, k, v, num_objects)
+            b_logits.append(b_logit)
+            # Memorize b
+            b_pred = F.softmax(b_logit, dim=1)
+            #b_im = self.stn(b_im, b_pred)
+            b_k, b_v = self.stm.memorize(b_im, b_pred, num_objects)
+            k = torch.cat([k, b_k], dim=3)
+            v = torch.cat([v, b_v], dim=3)
+        
+        logit = self.stm.segment(c_im, k, v, num_objects)
+
+        return (*b_logits, logit)

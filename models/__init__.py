@@ -1,1 +1,1 @@
-from .stm import STM 
+from .stm import STMOriginal

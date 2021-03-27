@@ -1,0 +1,78 @@
+id: pretrained 
+pretrained: runs/pretrained-2021_03_27-16_14_25/current.pth
+seed: 42
+
+model:
+    name: STMOriginal
+    args:
+
+        
+optimizer:
+    name: Adam
+    args:
+        lr: 0.00001
+        # momentum: 0.9
+        # nesterov: True 
+        # <argument keyword>: <argument value>
+        # ... more args
+loss:
+    name: MultiCELoss
+    args:
+        #weight: [1, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50]
+        #<argument keyword>: <argument value>
+        # ... more args
+metric:
+    - name: ModifiedMeanIoU
+      args:
+          nclasses: 11
+
+scheduler:
+    name: ReduceLROnPlateau
+    args:
+        mode: min
+        factor: 0.5
+        patience: 3
+        verbose: True
+
+dataset:
+    train:
+        name: SyntheticDataset
+        args:
+            dataset:
+                name: COCODataset
+                args:
+                    img_folder: CocoDataset/val2017
+                    annot_file: CocoDataset/annotations/val_split_train_instances.json
+                    max_annot: 3
+            niters: 1000
+            nimgs: 3
+        loader:
+            name: DataLoader
+            args:
+                batch_size: 1
+                num_workers: 4
+                shuffle: True
+    val:
+        name: SyntheticDataset
+        args:
+            dataset:
+                name: COCODataset
+                args:
+                    img_folder: CocoDataset/val2017
+                    annot_file: CocoDataset/annotations/val_split_val_instances.json
+                    max_annot: 3
+            niters: 500
+            nimgs: 3
+        loader:
+            name: DataLoader
+            args:
+                batch_size: 1
+                num_workers: 4
+                shuffle: False 
+
+trainer:
+    nepochs: 100
+    val_step: 1
+    log_step: 1
+    # checkpoint_mini_step: 100
+    save_dir: runs

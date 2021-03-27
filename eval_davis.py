@@ -94,18 +94,18 @@ def Run_video(Fs, Ms, num_frames, num_objects, Mem_every=None, Mem_number=None):
             logit = model(Fs[:,:,t], this_keys, this_values, torch.tensor([num_objects]))
         Es[:,:,t] = F.softmax(logit, dim=1)
         
-        loss = criterion(logit.cuda(), Ms[:,:,t].cuda())
+        # loss = criterion(logit.cuda(), Ms[:,:,t].cuda())
 
-        gt = torch.argmax(Ms[:,:,t], dim = 1)
-        pr = torch.argmax(Es[:,:,t], dim = 1)
-        print(f"Num pixels correct is ", (gt == pr).sum())
-        print(f"Loss of frame {t} is {loss}")
+        # gt = torch.argmax(Ms[:,:,t], dim = 1)
+        # pr = torch.argmax(Es[:,:,t], dim = 1)
+        # print(f"Num pixels correct is ", (gt == pr).sum())
+        # print(f"Loss of frame {t} is {loss}")
         # update
         if t-1 in to_memorize:
             keys, values = this_keys, this_values
         
     pred = np.argmax(Es[0].cpu().numpy(), axis=0).astype(np.uint8)
-    exit(0)
+ 
     return pred, Es
 
 
@@ -128,8 +128,8 @@ print('Start Testing:', code_name)
 
 for seq, V in enumerate(Testloader):
     Fs, Ms, num_objects, info = V
-    print(Fs.shape, Ms.shape)
-    break
+    # print(Fs.shape, Ms.shape)
+    # break
     seq_name = info['name'][0]
     num_frames = info['num_frames'][0].item()
     print('[{}]: num_frames: {}, num_objects: {}'.format(seq_name, num_frames, num_objects[0][0]))
@@ -146,13 +146,14 @@ for seq, V in enumerate(Testloader):
         img_E.save(os.path.join(test_path, '{:05d}.png'.format(f)))
 
     if VIZ:
-        from helpers import overlay_davis
+        print("Creating video")
+        from utils.helpers import overlay_davis
         # visualize results #######################
         viz_path = os.path.join('./viz/', code_name, seq_name)
         if not os.path.exists(viz_path):
             os.makedirs(viz_path)
 
-        for f in range(num_frames):
+        for f in tqdm.tqdm(range(num_frames)):
             pF = (Fs[0,:,f].permute(1,2,0).numpy() * 255.).astype(np.uint8)
             pE = pred[f]
             canvas = overlay_davis(pF, pE, palette)

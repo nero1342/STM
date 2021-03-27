@@ -89,67 +89,43 @@ class Trainer():
     
     def train_epoch(self, epoch, dataloader):
         total_loss = meter.AverageValueMeter() 
-        loss1 = meter.AverageValueMeter() 
-        loss2 = meter.AverageValueMeter() 
-
+       
         self.model.train()
         print("Training..........")
         progress_bar = tqdm(dataloader)
         max_iter = len(dataloader)
-        for i, data in enumerate(progress_bar):
-            Fs, Ms, num_objects, info = data 
-            
-            Fs = move_to(Fs, self.device)
-            Ms = move_to(Ms, self.device)
-            num_objects = move_to(torch.tensor([num_objects]), self.device) 
-            
-            self.optimizer.zero_grad() 
-            
-            # memorize
-            key_0, value_0 = self.model(Fs[:,:,0], Ms[:,:,0], num_objects) 
+        for i, (inp, lbl) in enumerate(progress_bar):
+            # 1: Load img_inputs and labels
+            inp = move_to(inp, self.device)
+            lbl = move_to(lbl, self.device)
+            # 2: Clear gradients from previous iteration
+            self.optimizer.zero_grad()
+            # 3: Get network outputs
+            outs = self.model(inp)
+            # 4: Calculate the loss
+            loss = self.criterion(outs, lbl)
+            # 5: Calculate gradients
+            loss.backward()
+            # 6: Performing backpropagation
+            self.optimizer.step()
 
-            logit_1 = self.model(Fs[:,:,1], key_0, value_0, num_objects)
-
-            loss_1 = self.criterion(logit_1, Ms[:,:,1])
-
-            key_1, value_1 = self.model(Fs[:,:,1], Ms[:,:,1], num_objects) 
-            
-            this_keys = torch.cat([key_0, key_1], dim=3)
-            this_values = torch.cat([value_0, value_1], dim=3)
-        
-            logit_2 = self.model(Fs[:,:,2], this_keys, this_values, num_objects)
-             
-            loss_2 = self.criterion(logit_2, Ms[:,:,2])
-
-            loss = loss_1 * 2 + loss_2
-            
-            if loss == 0 or not torch.isfinite(loss):
-                    continue
-
-            loss1.add(loss_1.item()) 
-            loss2.add(loss_2.item()) 
             total_loss.add(loss.item()) 
-
-            loss.backward() 
-
-            self.optimizer.step() 
 
             with torch.no_grad():
                 total_loss.add(loss.item())
                 progress_bar.set_description(
-                    'Iteration: {}/{}. Loss 1 - 1: {:.5f}. Loss 2 - 1: {:.5f}. Total loss: {:.5f}'.format(
-                        i + 1, len(dataloader), loss_1.item(),
-                        loss_2.item(), total_loss.value()[0]))
+                    'Iteration: {}/{}. Total loss: {:.5f}'.format(
+                        i + 1, len(dataloader), loss.item()))
                 
                 self.tsboard.update_scalar(
-                    'Train_Loss/total', loss, epoch * len(dataloader) + i 
+                    'Loss/train', loss, epoch * len(dataloader) + i 
                 )
-                self.tsboard.update_scalar(
-                    'Train_Loss/1-1', loss_1, epoch * len(dataloader) + i 
-                )
-                self.tsboard.update_scalar(
-                    'Train_Loss/2-1', loss_2, epoch * len(dataloader) + i 
-                )
+
+            outs = detach(outs)
+            lbl = detach(lbl)
+            for m in self.metric.values():
+                value = m.calculate(outs, lbl)
+                m.update(value)
 
             # if (i + 1) % self.config['trainer']['checkpoint_mini_step'] == 0:
             #     self.save_current_checkpoint(epoch)
@@ -157,8 +133,8 @@ class Trainer():
         print("+ Train result")
         avg_loss = total_loss.value()[0]
         print("Loss:", avg_loss)
-        # for m in self.metric.values():
-        #     m.summary() 
+        for m in self.metric.values():
+            m.summary() 
 
     @torch.no_grad() 
     def val_epoch(self, epoch, dataloader):
@@ -170,44 +146,26 @@ class Trainer():
         print("Evaluating.....")
         progress_bar = tqdm(dataloader)
         # cls_loss
-        for i, data in enumerate(progress_bar):
-            Fs, Ms, num_objects, info = data 
-            
-            Fs = move_to(Fs, self.device)
-            Ms = move_to(Ms, self.device)
-            num_objects = move_to(torch.tensor([num_objects]), self.device) 
-           
-            self.optimizer.zero_grad() 
-            # memorize
-            key_0, value_0 = self.model(Fs[:,:,0], Ms[:,:,0], num_objects) 
+        for i, (inp, lbl) in enumerate(progress_bar):
+            # 1: Load inputs and labels
+            inp = move_to(inp, self.device)
+            lbl = move_to(lbl, self.device)
+            # 2: Get network outputs
+            outs = self.model(inp)
+            # 3: Calculate the loss
+            loss = self.criterion(outs, lbl)
+            # 4: Update loss
+            # 5: Update metric
+            outs = detach(outs)
+            lbl = detach(lbl)
+            for m in self.metric.values():
+                value = m.calculate(outs, lbl)
+                m.update(value)
 
-            logit_1 = self.model(Fs[:,:,1], key_0, key_1, num_objects)
-
-            loss_1 = self.criterion(logit_1, Ms[:,:,1])
-
-            key_1, value_1 = self.model(Fs[:,:,1], Ms[:,:,1], num_objects) 
-            
-            this_keys = torch.cat([key_0, key_1], dim=3)
-            this_values = torch.cat([value_0, value_1], dim=3)
-        
-            logit_2 = self.model(Fs[:,:,2], this_keys, this_values, num_objects)
-             
-            loss_2 = self.criterion(logit_2, Ms[:,:,2])
-
-            loss = loss_1 * 2 + loss_2
-            
-            if loss == 0 or not torch.isfinite(loss):
-                    continue
-
-            loss1.add(loss_1.item()) 
-            loss2.add(loss_2.item()) 
-            total_loss.add(loss.item()) 
-            
             total_loss.add(loss.item())
             progress_bar.set_description(
-                'Iteration: {}/{}. Loss 1 - 1: {:.5f}. Loss 2 - 1: {:.5f}. Total loss: {:.5f}'.format(
-                    i + 1, len(dataloader), loss_1.item(),
-                    loss_2.item(), total_loss.value()[0]))
+                'Iteration: {}/{}. Total loss: {:.5f}'.format(
+                    i + 1, len(dataloader), loss.item()))
             
             
         print("+ Evaluation result")
@@ -227,11 +185,11 @@ class Trainer():
         )
                         
         # Calculate metric here
-        # for k in self.metric.keys():
-        #     m = self.metric[k].value()
-        #     self.metric[k].summary()
-        #     self.val_metric[k].append(m)
-        #     self.tsboard.update_metric('val', k, m, epoch)
+        for k in self.metric.keys():
+            m = self.metric[k].value()
+            self.metric[k].summary()
+            self.val_metric[k].append(m)
+            self.tsboard.update_metric('val', k, m, epoch)
 
     def train(self, train_dataloader, val_dataloader):
         for epoch in range(self.nepochs):
@@ -262,7 +220,7 @@ class Trainer():
                 # Get latest val loss here
                 val_loss = self.val_loss[-1]
                 val_metric = None 
-                # {k: m[-1] for k, m in self.val_metric.items()}
+                {k: m[-1] for k, m in self.val_metric.items()}
                 self.save_checkpoint(epoch, val_loss, val_metric)
 
             # self.save_checkpoint(epoch)

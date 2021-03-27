@@ -3,6 +3,10 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+*ipynb 
+viz/
+test/
+CocoDataset
 DAVIS 
 runs
 *.pth

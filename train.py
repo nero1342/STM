@@ -43,9 +43,9 @@ def train(config):
     set_seed(config['seed'])
     model = get_instance(config['model']).to(device)
 
-    if config['parallel']:
-        print("Load parallel model")
-        model = nn.DataParallel(model)
+    # if config['parallel']:
+    #     print("Load parallel model")
+    #     model = nn.DataParallel(model)
 
     # Train from pretrained if it is not None
     if pretrained is not None:
