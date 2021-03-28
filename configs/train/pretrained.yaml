@@ -1,5 +1,5 @@
 id: pretrained 
-pretrained: runs/pretrained-2021_03_27-16_14_25/current.pth
+pretrained: runs/pretrained-2021_03_27-17_35_12/current.pth
 seed: 42
 
 model:

@@ -63,16 +63,16 @@ class Trainer():
         else:
             print(f'Loss is not improved from {self.best_loss:.6f}.')
 
-        # for k in self.metric.keys():
-        #    if val_metric[k] > self.best_metric[k]:
-        #        print(
-        #            f'{k} is improved from {self.best_metric[k]: .6f} to {val_metric[k]: .6f}. Saving weights...')
-        #        torch.save(data, os.path.join(
-        #            self.save_dir, f'best_metric_{k}.pth'))
-        #        self.best_metric[k] = val_metric[k]
-        #    else:
-        #        print(
-        #            f'{k} is not improved from {self.best_metric[k]:.6f}.')
+        for k in self.metric.keys():
+           if val_metric[k] > self.best_metric[k]:
+               print(
+                   f'{k} is improved from {self.best_metric[k]: .6f} to {val_metric[k]: .6f}. Saving weights...')
+               torch.save(data, os.path.join(
+                   self.save_dir, f'best_metric_{k}.pth'))
+               self.best_metric[k] = val_metric[k]
+           else:
+               print(
+                   f'{k} is not improved from {self.best_metric[k]:.6f}.')
 
         print('Saving current model...')
         torch.save(data, os.path.join(self.save_dir, 'current.pth'))    
@@ -89,7 +89,8 @@ class Trainer():
     
     def train_epoch(self, epoch, dataloader):
         total_loss = meter.AverageValueMeter() 
-       
+        for m in self.metric.values():
+            m.reset()
         self.model.train()
         print("Training..........")
         progress_bar = tqdm(dataloader)
@@ -135,13 +136,13 @@ class Trainer():
         print("Loss:", avg_loss)
         for m in self.metric.values():
             m.summary() 
+            m.reset()
 
     @torch.no_grad() 
     def val_epoch(self, epoch, dataloader):
         total_loss = meter.AverageValueMeter() 
-        loss1 = meter.AverageValueMeter() 
-        loss2 = meter.AverageValueMeter() 
-
+        for m in self.metric.values():
+            m.reset()
         self.model.eval() 
         print("Evaluating.....")
         progress_bar = tqdm(dataloader)
@@ -219,7 +220,7 @@ class Trainer():
                 # if not self.debug:
                 # Get latest val loss here
                 val_loss = self.val_loss[-1]
-                val_metric = None 
+                #val_metric = None 
                 {k: m[-1] for k, m in self.val_metric.items()}
                 self.save_checkpoint(epoch, val_loss, val_metric)
 
