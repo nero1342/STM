@@ -1,5 +1,5 @@
 id: pretrained 
-pretrained: runs/pretrained-2021_03_27-16_14_25/current.pth
+pretrained: /content/drive/MyDrive/YoutubeVIS 2021/runs/pretrained-2021_03_27-17_48_31/current.pth
 seed: 42
 
 model:
@@ -24,7 +24,7 @@ loss:
 metric:
     - name: ModifiedMeanIoU
       args:
-          nclasses: 11
+         # nclasses: 11
 
 scheduler:
     name: ReduceLROnPlateau
@@ -44,7 +44,7 @@ dataset:
                     img_folder: CocoDataset/val2017
                     annot_file: CocoDataset/annotations/val_split_train_instances.json
                     max_annot: 3
-            niters: 1000
+            niters: 1
             nimgs: 3
         loader:
             name: DataLoader
@@ -73,6 +73,6 @@ dataset:
 trainer:
     nepochs: 100
     val_step: 1
-    log_step: 1
+    backward_step: 4
     # checkpoint_mini_step: 100
-    save_dir: runs
+    save_dir: /content/drive/MyDrive/YoutubeVIS 2021/runs

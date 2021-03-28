@@ -56,8 +56,8 @@ class COCODataset(data.Dataset):
     
     def _get_mask(self, h, w, anns):
         combined_mask = np.zeros((h, w), dtype=np.int8)
-        ids = np.random.choice(np.arange(10), size=len(anns))
+        #ids = np.random.choice(np.arange(10), size=len(anns))
         for i, ann in enumerate(anns):
             mask = self.coco.annToMask(ann)
-            combined_mask[mask == 1] = ids[i] + 1
+            combined_mask[mask == 1] = i + 1
         return combined_mask
