@@ -29,7 +29,9 @@ class SyntheticDataset:
         return self.niters
 
     def __getitem__(self, i):
-        i = random.randrange(0, len(self.dataset))
+        if len(self.dataset) != len(self):
+          i = random.randrange(0, len(self.dataset))
+        #i = i % (len(self.dataset))
         img, mask = self.dataset[i]
         
         imgs, masks = zip(*[self._augmentation(img, mask) for _ in range(self.nimgs)]) 
@@ -41,7 +43,7 @@ class SyntheticDataset:
 
         num_objects = torch.max(mask_0)
         if num_objects == 0:
-            return self.__getitem__(i)
+            return self.__getitem__(random.randrange(0, len(self.dataset)))
         return (im_0, mask_0, *imgs, num_objects), tuple(masks) 
 
     #@staticmethod

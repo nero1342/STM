@@ -35,7 +35,7 @@ class Trainer():
         self.train_ID += '-' + datetime.now().strftime('%Y_%m_%d-%H_%M_%S') 
 
         self.nepochs = self.config['trainer']['nepochs']
-        self.log_step = self.config['trainer']['log_step']
+        self.backward_step = self.config['trainer']['backward_step']
         self.val_step = self.config['trainer']['val_step']
         
         self.best_loss = np.inf 
@@ -95,12 +95,12 @@ class Trainer():
         print("Training..........")
         progress_bar = tqdm(dataloader)
         max_iter = len(dataloader)
+        self.optimizer.zero_grad()
         for i, (inp, lbl) in enumerate(progress_bar):
             # 1: Load img_inputs and labels
             inp = move_to(inp, self.device)
             lbl = move_to(lbl, self.device)
             # 2: Clear gradients from previous iteration
-            self.optimizer.zero_grad()
             # 3: Get network outputs
             outs = self.model(inp)
             # 4: Calculate the loss
@@ -108,25 +108,33 @@ class Trainer():
             # 5: Calculate gradients
             loss.backward()
             # 6: Performing backpropagation
-            self.optimizer.step()
-
+            if (i + 1) % self.backward_step == 0:
+              self.optimizer.step()
+              self.optimizer.zero_grad()
+        
             total_loss.add(loss.item()) 
-
-            with torch.no_grad():
-                total_loss.add(loss.item())
-                progress_bar.set_description(
-                    'Iteration: {}/{}. Total loss: {:.5f}'.format(
-                        i + 1, len(dataloader), loss.item()))
-                
-                self.tsboard.update_scalar(
-                    'Loss/train', loss, epoch * len(dataloader) + i 
-                )
 
             outs = detach(outs)
             lbl = detach(lbl)
             for m in self.metric.values():
                 value = m.calculate(outs, lbl)
                 m.update(value)
+
+            with torch.no_grad():
+                total_loss.add(loss.item())
+                desc = 'Iteration: {}/{}. Total loss: {:.5f}. '.format(
+                        i + 1, len(dataloader), loss.item())
+                for m in self.metric.values():
+                  value = m.value()
+                  metric = m.__class__.__name__
+                  desc += f'{metric}: {value:.5f}, '
+                progress_bar.set_description(desc)
+                
+                self.tsboard.update_scalar(
+                    'Loss/train', loss, epoch * len(dataloader) + i 
+                )
+
+            
 
             # if (i + 1) % self.config['trainer']['checkpoint_mini_step'] == 0:
             #     self.save_current_checkpoint(epoch)
@@ -164,9 +172,13 @@ class Trainer():
                 m.update(value)
 
             total_loss.add(loss.item())
-            progress_bar.set_description(
-                'Iteration: {}/{}. Total loss: {:.5f}'.format(
-                    i + 1, len(dataloader), loss.item()))
+            desc = 'Iteration: {}/{}. Total loss: {:.5f}. '.format(
+                        i + 1, len(dataloader), loss.item())
+            for m in self.metric.values():
+              value = m.value()
+              metric = m.__class__.__name__
+              desc += f'{metric}: {value:.5f}, '
+            progress_bar.set_description(desc)
             
             
         print("+ Evaluation result")
@@ -176,13 +188,7 @@ class Trainer():
         self.val_loss.append(avg_loss)
         
         self.tsboard.update_scalar(
-            'Val_Loss/total', total_loss.value()[0], epoch * len(dataloader) + i 
-        )
-        self.tsboard.update_scalar(
-            'Val_Loss/1-1', loss1.value()[0], epoch * len(dataloader) + i 
-        )
-        self.tsboard.update_scalar(
-            'Val_Loss/2-1', loss2.value()[0], epoch * len(dataloader) + i 
+            'Loss/val', total_loss.value()[0], epoch * len(dataloader) + i 
         )
                         
         # Calculate metric here
@@ -220,8 +226,7 @@ class Trainer():
                 # if not self.debug:
                 # Get latest val loss here
                 val_loss = self.val_loss[-1]
-                #val_metric = None 
-                {k: m[-1] for k, m in self.val_metric.items()}
+                val_metric = {k: m[-1] for k, m in self.val_metric.items()}
                 self.save_checkpoint(epoch, val_loss, val_metric)
 
             # self.save_checkpoint(epoch)
