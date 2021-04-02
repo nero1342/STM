@@ -91,7 +91,8 @@ class STM(nn.Module):
             B_list['f'].append(frame)
             B_list['m'].append(masks[:,o])
             B_list['o'].append( (torch.sum(masks[:,1:o], dim=1) + \
-                torch.sum(masks[:,o+1:num_objects+1], dim=1)).clamp(0,1) )
+                # torch.sum(masks[:,o+1:num_objects+1], dim=1)).clamp(0,1) )
+                torch.sum(masks[:,o+1:num_objects+1], dim=1)))
 
         # make Batch
         B_ = {}

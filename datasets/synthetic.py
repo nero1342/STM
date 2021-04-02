@@ -24,7 +24,11 @@ class SyntheticDataset:
         self.dataset = getter.get_instance(dataset) 
         self.niters = niters
         self.nimgs = nimgs
-    
+        
+        if len(self.dataset) != len(self):
+            print("Random getitem")
+        else:
+            print("Get all items")
     def __len__(self):
         return self.niters
 
@@ -39,7 +43,8 @@ class SyntheticDataset:
 
         def mask2tensor(x): return torch.LongTensor(np.array(x)) 
         masks = list(map(mask2tensor, masks))
-        mask_0, *masks = masks 
+        mask_0, *masks = self._filter(masks) 
+        
 
         num_objects = torch.max(mask_0)
         if num_objects == 0:
@@ -49,7 +54,8 @@ class SyntheticDataset:
     #@staticmethod
     def _augmentation(self, img, mask):
         train_transform = [
-            A.PadIfNeeded(min_height=384, min_width=384, always_apply=True,border_mode = 0),
+            A.PadIfNeeded(min_height=480, min_width=480, always_apply=True,border_mode = 0),
+            A.Resize(480, 480),
             A.HorizontalFlip(p=0.5),
             A.ShiftScaleRotate(scale_limit=0.1, rotate_limit=20, p = 1, border_mode = 0),
             A.RandomCrop(height=384, width=384, always_apply=True),
@@ -59,3 +65,27 @@ class SyntheticDataset:
         img, mask = result['image'], result['mask']
         return img, mask 
     
+    def _filter_small_objs(self, mask, thres):
+        # Filter small objects
+        ori_objs = np.unique(mask)
+        for obj in ori_objs:
+            area = (mask == obj).sum().item()
+            if area < thres:
+                mask[mask == obj] = 0
+        return mask
+        
+    def _filter_excessive_objs(self, masks):
+        # Filter excessive objects
+        ori_objs = np.unique(masks[0])
+        for i in range(1, len(masks)):
+            mask_objs = np.unique(masks[i])
+            excess_objs = np.setdiff1d(mask_objs, ori_objs)
+            for obj in excess_objs:
+                masks[i][masks[i] == obj] = 0
+        return masks
+
+    def _filter(self, masks):
+        #return masks
+        masks[0] = self._filter_small_objs(masks[0], 1000)
+        masks = self._filter_excessive_objs(masks)
+        return masks

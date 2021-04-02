@@ -1,6 +1,7 @@
-id: pretrained 
-pretrained: /content/drive/MyDrive/YoutubeVIS 2021/runs/pretrained-2021_03_27-17_48_31/current.pth
+id: pretrained_resnext50_youtube_vis
+pretrained: #runs/pretrained_youtube_vis_101-2021_04_02-06_10_53/current.pth
 seed: 42
+
 
 model:
     name: STMOriginal
@@ -18,7 +19,9 @@ optimizer:
 loss:
     name: MultiCELoss
     args:
-        #weight: [1, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50]
+        nclasses: 11
+        #weights: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+        weights: [1, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5]
         #<argument keyword>: <argument value>
         # ... more args
 metric:
@@ -31,7 +34,7 @@ scheduler:
     args:
         mode: min
         factor: 0.5
-        patience: 3
+        patience: 100
         verbose: True
 
 dataset:
@@ -43,8 +46,10 @@ dataset:
                 args:
                     img_folder: CocoDataset/val2017
                     annot_file: CocoDataset/annotations/val_split_train_instances.json
+                    # img_folder: /home/nero/YoutubeVIS21/train/JPEGImages
+                    # annot_file: /home/nero/YoutubeVIS21/train/train_instances_frames.json
                     max_annot: 3
-            niters: 1
+            niters: 1000
             nimgs: 3
         loader:
             name: DataLoader
@@ -52,6 +57,22 @@ dataset:
                 batch_size: 1
                 num_workers: 4
                 shuffle: True
+    # val:
+    #     name: DAVISTripletDataset
+    #     args:
+    #         root_path: DAVIS
+    #         resolution: 480p
+    #         phase: val
+    #         mode: 1
+    #         is_train: False
+    #         max_skip: 2
+    #         # max_npairs: 50
+    #     loader:
+    #         name: DataLoader
+    #         args:
+    #             batch_size: 1
+    #             num_workers: 4
+    #             shuffle: True
     val:
         name: SyntheticDataset
         args:
@@ -75,4 +96,4 @@ trainer:
     val_step: 1
     backward_step: 4
     # checkpoint_mini_step: 100
-    save_dir: /content/drive/MyDrive/YoutubeVIS 2021/runs
+    save_dir: runs

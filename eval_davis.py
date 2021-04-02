@@ -52,6 +52,7 @@ DATA_ROOT = args.D
 MODEL = 'STM'
 print(MODEL, ': Testing on DAVIS')
 
+device = torch.device("cuda:0")
 os.environ['CUDA_VISIBLE_DEVICES'] = GPU
 if torch.cuda.is_available():
     print('using Cuda devices, num:', torch.cuda.device_count())
@@ -64,10 +65,6 @@ if VIZ:
 palette = Image.open(DATA_ROOT + '/Annotations/480p/blackswan/00000.png').getpalette()
 
 def Run_video(Fs, Ms, num_frames, num_objects, Mem_every=None, Mem_number=None):
-    max_n_objects = Ms[:,:,0].size(1)
-    weight = [30] * max_n_objects
-    weight[0] = 1
-    criterion = DiceLoss(weight)
     # initialize storage tensors
     if Mem_every:
         to_memorize = [int(i) for i in np.arange(0, num_frames, step=Mem_every)]
@@ -78,11 +75,14 @@ def Run_video(Fs, Ms, num_frames, num_objects, Mem_every=None, Mem_number=None):
 
     Es = torch.zeros_like(Ms)
     Es[:,:,0] = Ms[:,:,0]
-
+    
+    Fs.to(device)
+    Es.to(device)
     for t in tqdm.tqdm(range(1, num_frames)):
         # memorize
         with torch.no_grad():
             prev_key, prev_value = model(Fs[:,:,t-1], Es[:,:,t-1], torch.tensor([num_objects])) 
+
         if t-1 == 0: # 
             this_keys, this_values = prev_key, prev_value # only prev memory
         else:
@@ -94,18 +94,11 @@ def Run_video(Fs, Ms, num_frames, num_objects, Mem_every=None, Mem_number=None):
             logit = model(Fs[:,:,t], this_keys, this_values, torch.tensor([num_objects]))
         Es[:,:,t] = F.softmax(logit, dim=1)
         
-        # loss = criterion(logit.cuda(), Ms[:,:,t].cuda())
-
-        # gt = torch.argmax(Ms[:,:,t], dim = 1)
-        # pr = torch.argmax(Es[:,:,t], dim = 1)
-        # print(f"Num pixels correct is ", (gt == pr).sum())
-        # print(f"Loss of frame {t} is {loss}")
         # update
         if t-1 in to_memorize:
             keys, values = this_keys, this_values
         
     pred = np.argmax(Es[0].cpu().numpy(), axis=0).astype(np.uint8)
- 
     return pred, Es
 
 
@@ -113,21 +106,27 @@ def Run_video(Fs, Ms, num_frames, num_objects, Mem_every=None, Mem_number=None):
 Testset = DAVIS_MO_Test(DATA_ROOT, resolution='480p', imset='20{}/{}.txt'.format(YEAR,SET), single_object=(YEAR==16))
 Testloader = data.DataLoader(Testset, batch_size=1, shuffle=False, num_workers=2, pin_memory=True)
 
-model = nn.DataParallel(STM())
+from models import STMOriginal 
+
+model = STMOriginal()
+
 if torch.cuda.is_available():
     model.cuda()
 model.eval() # turn-off BN
 
-pth_path = 'STM_weights.pth'
+pth_path = '/home/nero/Segmentation/STM/runs/pretrained-2021_03_28-16_55_06/current.pth'
 print('Loading weights:', pth_path)
-model.load_state_dict(torch.load(pth_path))
+model.load_state_dict(torch.load(pth_path)['model_state_dict'])
+model = nn.DataParallel(model.stm) 
 
 code_name = '{}_DAVIS_{}{}'.format(MODEL,YEAR,SET)
 print('Start Testing:', code_name)
 
 
 for seq, V in enumerate(Testloader):
+    
     Fs, Ms, num_objects, info = V
+    
     # print(Fs.shape, Ms.shape)
     # break
     seq_name = info['name'][0]
@@ -138,6 +137,7 @@ for seq, V in enumerate(Testloader):
         
     # Save results for quantitative eval ######################
     test_path = os.path.join('./test', code_name, seq_name)
+    print("Saving results...")
     if not os.path.exists(test_path):
         os.makedirs(test_path)
     for f in range(num_frames):

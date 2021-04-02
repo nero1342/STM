@@ -1,0 +1,80 @@
+id: triple_skip2
+pretrained: runs/ppair_5-2021_03_30-18_43_13/current.pth
+seed: 42
+
+
+model:
+    name: STMOriginal
+    args:
+
+        
+optimizer:
+    name: Adam
+    args:
+        lr: 0.00001
+        # momentum: 0.9
+        # nesterov: True 
+        # <argument keyword>: <argument value>
+        # ... more args
+loss:
+    name: MultiCELoss
+    args:
+        nclasses: 11
+        #weights: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+        weights: [1, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5]
+        #<argument keyword>: <argument value>
+        # ... more args
+metric:
+    - name: ModifiedMeanIoU
+      args:
+         # nclasses: 11
+
+scheduler:
+    name: ReduceLROnPlateau
+    args:
+        mode: min
+        factor: 0.5
+        patience: 100
+        verbose: True
+
+dataset:
+    train:
+        name: DAVISTripletDataset
+        args:
+            root_path: DAVIS
+            resolution: 480p
+            phase: train
+            mode: 2
+            is_train: True
+            max_skip: 2
+            max_npairs: 20
+        loader:
+            name: DataLoader
+            args:
+                batch_size: 1
+                num_workers: 4
+                shuffle: True
+    val:
+        name: DAVISTripletDataset
+        args:
+            root_path: DAVIS
+            resolution: 480p
+            phase: val
+            mode: 2
+            is_train: False
+            max_skip: 2
+            max_npairs: 20
+        loader:
+            name: DataLoader
+            args:
+                batch_size: 1
+                num_workers: 4
+                shuffle: True
+                
+
+trainer:
+    nepochs: 10
+    val_step: 1
+    backward_step: 4
+    # checkpoint_mini_step: 100
+    save_dir: runs
